@@ -1,0 +1,47 @@
+{
+  "productName": "RikoRoast",
+  "version": "0.1.0",
+  "identifier": "com.gabriel.rikoroast",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:1420"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "RikoRoast",
+        "width": 1100,
+        "height": 720,
+        "minWidth": 760,
+        "minHeight": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "decorations": true,
+        "url": "setup.html"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "targets": "app",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENCQ0Q4RUIxMkY4MDdENzEKUldSeGZZQXZzWTdOeTZBak13ODI1OElXcGtpRlFRaTAwODhybzg1a1hXaUtzem5pUGY1Zy9abGcK"
+    }
+  }
+}

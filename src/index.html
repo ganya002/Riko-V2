@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RikoRoast</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+</head>
+<body>
+    <div class="app">
+
+        <!-- ── Left rail ─────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+
+            <!-- Top: logo + new chat -->
+            <div class="sidebar-top">
+                <div class="logo-avatar">R</div>
+                <button class="icon-btn" id="new-chat-btn" title="New chat  (N)">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Search -->
+            <div class="search-wrap">
+                <svg class="search-icon" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/>
+                </svg>
+                <input id="conv-search" type="text" placeholder="Search chats…" autocomplete="off" spellcheck="false">
+            </div>
+
+            <!-- Conversation list -->
+            <div class="conv-list" id="conv-list"></div>
+
+            <!-- Bottom actions -->
+            <div class="sidebar-bottom">
+                <button class="sidebar-action" id="settings-btn" title="Settings">
+                    <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    Settings
+                </button>
+            </div>
+        </aside>
+
+        <!-- ── Main panel ─────────────────────── -->
+        <div class="main">
+
+            <!-- Header -->
+            <header class="chat-header">
+                <button class="sidebar-toggle" id="sidebar-toggle" title="Toggle sidebar">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+                <div class="header-center">
+                    <span class="header-name" id="header-title">Riko</span>
+                    <span class="header-divider"></span>
+                    <span class="header-sub">Gabriel's MacBook</span>
+                </div>
+                <div class="header-actions">
+                    <span class="online-badge">
+                        <span class="online-dot"></span>Online
+                    </span>
+                    <button class="icon-btn" id="export-btn" title="Export conversation">
+                        <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                        </svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Chat messages -->
+            <div id="chat" class="chat-area">
+                <div class="empty-state" id="chat-empty">
+                    <div class="empty-logo">R</div>
+                    <h3>Hva kan jeg hjelpe deg med?</h3>
+                    <p>Spør om hva som helst. Jeg biter tilbake 😏</p>
+                </div>
+            </div>
+
+            <!-- Typing indicator -->
+            <div class="typing-wrap" id="typing-indicator" hidden>
+                <div class="typing-avatar">R</div>
+                <div class="typing-bubble">
+                    <span></span><span></span><span></span>
+                </div>
+            </div>
+
+            <!-- File preview bar -->
+            <div class="file-preview-bar" id="file-preview-bar" hidden>
+                <div class="file-chips" id="file-chips"></div>
+                <button class="clear-files-btn" id="clear-files-btn">Clear all</button>
+            </div>
+
+            <!-- Input -->
+            <div class="input-wrap">
+                <div class="input-box" id="input-box">
+                    <button class="attach-btn" id="attach-btn" title="Attach file  (/)">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                        </svg>
+                    </button>
+                    <input type="file" id="file-input" accept=".txt,.md,.json,.csv,.js,.ts,.py,.html,.css,.xml,.yaml,.yml,.log,.sh,.bash,.toml,.ini,.env,.config" multiple hidden>
+                    <textarea id="user-input" placeholder="Meld Riko…" rows="1" spellcheck="false" autocomplete="off"></textarea>
+                    <button class="attach-btn" id="mic-btn" title="Voice input">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 16a4 4 0 004-4V8a4 4 0 10-8 0v4a4 4 0 004 4z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12a4 4 0 008 0m-4 4v4m-3 0h6"/>
+                        </svg>
+                    </button>
+                    <button id="send-btn" aria-label="Send">
+                        <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"/>
+                        </svg>
+                    </button>
+                </div>
+                <p class="input-hint">Enter to send · Shift+Enter for newline · N = new chat · / = attach file · Mic = voice input</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Settings modal ─────────────────────── -->
+    <div class="modal-overlay" id="modal-overlay" hidden>
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Settings</h3>
+                <button class="modal-close" id="modal-close">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label">API Backend</label>
+                <div class="toggle-row">
+                    <span class="toggle-label">Use local Ollama</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="ollama-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="settings-section" id="pollinations-section">
+                <label class="settings-label">Pollinations API Key</label>
+                <input type="password" id="api-key-input" placeholder="sk_…" autocomplete="off">
+                <p class="settings-hint">Get a key at <a href="https://enter.pollinations.ai" target="_blank">enter.pollinations.ai</a></p>
+            </div>
+
+            <div class="settings-section" id="ollama-section" hidden>
+                <label class="settings-label">Ollama Model</label>
+                <input type="text" id="ollama-model-input" placeholder="dolphin3:8b" autocomplete="off">
+                <p class="settings-hint">Run <code>ollama pull dolphin3</code> to install. Make sure <code>ollama serve</code> is running.</p>
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label">Runtime</label>
+                <div class="toggle-row">
+                    <span class="toggle-label">Auto-repair dependencies on launch</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="auto-repair-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Text-to-speech (free, local system voice)</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="tts-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <label class="settings-label" style="margin-top:8px;">TTS Voice</label>
+                <input type="text" id="tts-voice-input" placeholder="Samantha" autocomplete="off">
+                <p class="settings-hint">Use any voice from macOS <code>say -v ?</code> (e.g. Samantha, Karen, Daniel, Nora).</p>
+                <div class="toggle-row">
+                    <span class="toggle-label">Speech-to-text (microphone)</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="stt-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <p class="settings-hint" id="runtime-status">Runtime status: checking…</p>
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label">Experimental Autonomous Mode</label>
+                <div class="toggle-row">
+                    <span class="toggle-label">Enable autonomous mode (session only)</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="autonomous-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <span class="toggle-label">Allow app closing pranks</span>
+                    <label class="toggle">
+                        <input type="checkbox" id="autonomous-prank-toggle">
+                        <span class="toggle-track"></span>
+                    </label>
+                </div>
+                <p class="settings-hint">Session only: resets to OFF whenever RikoRoast restarts.</p>
+            </div>
+
+            <div class="settings-section">
+                <label class="settings-label">Danger zone</label>
+                <button class="danger-btn" id="delete-all-btn">Delete all conversations</button>
+            </div>
+
+            <div class="modal-actions">
+                <button id="modal-cancel">Cancel</button>
+                <button id="modal-save" class="primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Rename modal ───────────────────────── -->
+    <div class="modal-overlay" id="rename-overlay" hidden>
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3>Rename chat</h3>
+                <button class="modal-close" id="rename-close">
+                    <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <input type="text" id="rename-input" placeholder="Chat title…" autocomplete="off" maxlength="60">
+            <div class="modal-actions">
+                <button id="rename-cancel">Cancel</button>
+                <button id="rename-save" class="primary">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

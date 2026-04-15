@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RikoRoast — Setup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+    <div class="wizard">
+
+        <!-- ── Screen 1: Welcome ───────────────────── -->
+        <div class="screen active" id="screen-welcome">
+            <div class="logo-wrap">
+                <div class="logo-mark">R</div>
+                <div class="logo-pulse"></div>
+            </div>
+            <h1>Meet Riko.</h1>
+            <p class="sub">Your personal AI that lives on your Mac.<br>Let's get her set up — it only takes a minute.</p>
+            <button class="btn-primary" id="start-btn">Get started</button>
+            <p class="fine-print">RikoRoast runs entirely on your Mac.<br>Nothing you say ever leaves your computer.</p>
+        </div>
+
+        <!-- ── Screen 2: Installing dependencies ─────── -->
+        <div class="screen" id="screen-installing">
+            <h2>Setting things up</h2>
+            <p class="sub">Hang tight — this only happens once.</p>
+
+            <div class="steps-list" id="steps-list">
+                <div class="step" id="step-brew_check">
+                    <div class="step-icon pending">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="step-text">
+                        <span class="step-title">Checking Homebrew</span>
+                        <span class="step-desc">Mac's package manager</span>
+                    </div>
+                </div>
+                <div class="step" id="step-brew_install" hidden>
+                    <div class="step-icon pending">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="step-text">
+                        <span class="step-title">Installing Homebrew</span>
+                        <span class="step-desc"></span>
+                    </div>
+                </div>
+                <div class="step" id="step-ollama_check">
+                    <div class="step-icon pending">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="step-text">
+                        <span class="step-title">Checking Ollama</span>
+                        <span class="step-desc">Local AI runtime</span>
+                    </div>
+                </div>
+                <div class="step" id="step-ollama_install" hidden>
+                    <div class="step-icon pending">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="step-text">
+                        <span class="step-title">Installing Ollama</span>
+                        <span class="step-desc"></span>
+                    </div>
+                </div>
+                <div class="step" id="step-ollama_serve">
+                    <div class="step-icon pending">
+                        <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                    </div>
+                    <div class="step-text">
+                        <span class="step-title">Starting Ollama</span>
+                        <span class="step-desc">Running in the background</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Password notice (shown when brew needs sudo) -->
+            <div class="notice" id="password-notice" hidden>
+                <div class="notice-icon">🔑</div>
+                <div class="notice-text">
+                    <strong>macOS needs your password</strong>
+                    <span>A system dialog will appear shortly. This is completely normal — Homebrew needs permission to install on your Mac. We never see or store your password.</span>
+                </div>
+            </div>
+
+            <div class="error-box" id="install-error" hidden>
+                <strong>Something went wrong</strong>
+                <span id="install-error-msg"></span>
+                <button class="btn-secondary" id="retry-btn">Try again</button>
+            </div>
+        </div>
+
+        <!-- ── Screen 3: Model picker ──────────────── -->
+        <div class="screen" id="screen-model">
+            <h2>Choose Riko's brain</h2>
+            <p class="sub" id="model-sub">Pick a model or use our recommendation.</p>
+
+            <!-- Recommendation card -->
+            <div class="recommendation-card" id="recommendation-card" hidden>
+                <div class="rec-badge">Recommended for your Mac</div>
+                <div class="rec-model-name" id="rec-model-name">Dolphin 3 · 8B</div>
+                <div class="rec-reason" id="rec-reason"></div>
+                <div class="rec-meta">
+                    <span id="rec-size"></span>
+                    <span class="rec-dot">·</span>
+                    <span>Unfiltered · Fast · Private</span>
+                </div>
+            </div>
+
+            <!-- Installed models list (shown if models exist) -->
+            <div class="model-list" id="model-list" hidden></div>
+
+            <div class="model-actions">
+                <button class="btn-primary" id="use-recommended-btn" hidden>
+                    Download &amp; use recommended
+                </button>
+                <button class="btn-primary" id="use-selected-btn" hidden>
+                    Use selected model
+                </button>
+            </div>
+        </div>
+
+        <!-- ── Screen 4: Downloading model ────────── -->
+        <div class="screen" id="screen-download">
+            <div class="download-icon">⬇</div>
+            <h2>Downloading <span id="dl-model-name">Dolphin 3</span></h2>
+            <p class="sub">Riko's getting her brain. Don't close the app.</p>
+
+            <div class="progress-wrap">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+                </div>
+                <div class="progress-meta">
+                    <span id="progress-pct">0%</span>
+                    <span id="progress-size">— GB / — GB</span>
+                    <span id="progress-eta">Estimating…</span>
+                </div>
+            </div>
+
+            <div class="progress-status" id="progress-status">Starting download…</div>
+        </div>
+
+        <!-- ── Screen 5: All done ──────────────────── -->
+        <div class="screen" id="screen-done">
+            <div class="done-icon">✓</div>
+            <h2>Riko is ready.</h2>
+            <p class="sub">She's a little sharp, occasionally rude,<br>and genuinely useful. Don't say we didn't warn you.</p>
+            <button class="btn-primary" id="launch-btn">Start chatting</button>
+        </div>
+
+    </div>
+
+    <script src="setup.js"></script>
+</body>
+</html>
