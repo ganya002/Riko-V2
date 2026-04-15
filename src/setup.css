@@ -378,8 +378,43 @@ h2 {
 .model-item.selected .model-radio-dot { opacity: 1; }
 
 .model-info { flex: 1; min-width: 0; }
-.model-name { font-size: 0.9rem; font-weight: 500; color: var(--text); }
+.model-name {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
 .model-size { font-size: 0.76rem; color: var(--text-3); }
+.model-reason {
+    font-size: 0.76rem;
+    color: var(--text-2);
+    line-height: 1.45;
+    margin-top: 3px;
+}
+
+.model-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.model-tag.recommended {
+    background: rgba(232,24,93,0.12);
+    color: var(--pink);
+}
+
+.model-tag.installed {
+    background: rgba(34,197,94,0.12);
+    color: var(--green);
+}
 
 .model-actions { width: 100%; }
 

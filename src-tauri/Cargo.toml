@@ -1,6 +1,6 @@
 [package]
 name = "riko-roast"
-version = "0.1.0"
+version = "0.1.1"
 description = "RikoRoast — your personal AI companion"
 authors = ["Gabriel"]
 edition = "2021"
@@ -31,6 +31,7 @@ sysinfo            = "0.30"
 which              = "6"
 anyhow             = "1"
 url                = "2"
+base64             = "0.22"
 
 [profile.release]
 panic         = "abort"

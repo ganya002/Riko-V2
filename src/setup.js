@@ -121,7 +121,7 @@ let selectedModelId = null;
 async function goToModelScreen() {
     showScreen('model');
 
-    let models = [], rec = null;
+    let models = [], catalog = null;
 
     try {
         models = await invoke('list_models');
@@ -131,17 +131,36 @@ async function goToModelScreen() {
     }
 
     try {
-        rec = await invoke('get_model_recommendation');
+        catalog = await invoke('get_model_catalog');
     } catch (e) {
-        console.error('get_model_recommendation failed:', e);
-        // Fallback if hardware detection fails
-        rec = {
-            model_id: 'dolphin3:8b',
-            display_name: 'Dolphin 3 · 8B',
-            reason: 'The recommended model for most Macs.',
-            size_gb: 4.9,
+        console.error('get_model_catalog failed:', e);
+        catalog = {
+            hardware: { chip_name: 'your Mac', total_ram_gb: 0 },
+            recommended_model_id: 'dolphin3:8b',
+            options: [
+                {
+                    model_id: 'dolphin3:8b',
+                    display_name: 'Dolphin 3 · 8B',
+                    reason: 'The safest default for most Macs.',
+                    size_gb: 4.9,
+                },
+                {
+                    model_id: 'dolphin-mixtral:8x7b',
+                    display_name: 'Dolphin Mixtral · 8x7B',
+                    reason: 'A larger option for Macs with more RAM.',
+                    size_gb: 26.0,
+                },
+                {
+                    model_id: 'dolphin-llama3:70b',
+                    display_name: 'Dolphin Llama 3 · 70B',
+                    reason: 'For very high-end Macs only.',
+                    size_gb: 40.0,
+                },
+            ],
         };
     }
+
+    const rec = catalog.options.find(option => option.model_id === catalog.recommended_model_id) || catalog.options[0];
 
     const recCard   = document.getElementById('recommendation-card');
     const modelList = document.getElementById('model-list');
@@ -153,62 +172,84 @@ async function goToModelScreen() {
     document.getElementById('rec-reason').textContent     = rec.reason;
     document.getElementById('rec-size').textContent       = `~${rec.size_gb.toFixed(1)} GB download`;
 
-    if (models.length === 0) {
-        recCard.hidden   = false;
-        useRecBtn.hidden = false;
-        modelSub.textContent = 'No AI models found. We recommend the one below for your Mac.';
-
-        // Remove old listeners before adding new one
-        const newBtn = useRecBtn.cloneNode(true);
-        useRecBtn.parentNode.replaceChild(newBtn, useRecBtn);
-        newBtn.addEventListener('click', () => startDownload(rec.model_id, rec.display_name));
-    } else {
-        modelSub.textContent = 'Pick a model — or download the recommended one.';
-        modelList.hidden     = false;
-        useSelBtn.hidden     = false;
-
-        const recInstalled = models.some(m => m.name === rec.model_id);
-
-        if (!recInstalled) {
-            recCard.hidden   = false;
-            useRecBtn.hidden = false;
-            useRecBtn.textContent = 'Download recommended';
-            const newBtn = useRecBtn.cloneNode(true);
-            useRecBtn.parentNode.replaceChild(newBtn, useRecBtn);
-            newBtn.addEventListener('click', () => startDownload(rec.model_id, rec.display_name));
-        }
-
-        modelList.innerHTML = '';
-        models.forEach((m, i) => {
-            const item = document.createElement('div');
-            item.className = 'model-item' + (i === 0 ? ' selected' : '');
-            if (i === 0) selectedModelId = m.name;
-
-            item.innerHTML = `
-                <div class="model-radio"><div class="model-radio-dot"></div></div>
-                <div class="model-info">
-                    <div class="model-name">${m.name}</div>
-                    <div class="model-size">${m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : 'Installed'}</div>
-                </div>`;
-
-            item.addEventListener('click', () => {
-                document.querySelectorAll('.model-item').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                selectedModelId = m.name;
+    const installedById = new Map(models.map(model => [model.name, model]));
+    const options = [...catalog.options];
+    models.forEach((model) => {
+        if (!options.some(option => option.model_id === model.name)) {
+            options.push({
+                model_id: model.name,
+                display_name: model.name,
+                reason: 'Already installed on this Mac.',
+                size_gb: model.size_gb || 0,
             });
+        }
+    });
 
-            modelList.appendChild(item);
+    recCard.hidden = !rec;
+    modelList.hidden = false;
+    useSelBtn.hidden = false;
+    modelSub.textContent = `We checked ${catalog.hardware.chip_name || 'your Mac'} and picked a recommendation, but you can choose a different model if you want.`;
+
+    const recommendedInstalled = installedById.has(rec.model_id);
+    useRecBtn.hidden = false;
+    useRecBtn.textContent = recommendedInstalled ? 'Use recommended' : 'Download recommended';
+
+    modelList.innerHTML = '';
+    selectedModelId = rec.model_id;
+
+    options.forEach((option) => {
+        const isRecommended = option.model_id === rec.model_id;
+        const installed = installedById.has(option.model_id);
+        const item = document.createElement('div');
+        item.className = 'model-item' + (selectedModelId === option.model_id ? ' selected' : '');
+        item.dataset.modelId = option.model_id;
+        item.innerHTML = `
+            <div class="model-radio"><div class="model-radio-dot"></div></div>
+            <div class="model-info">
+                <div class="model-name">
+                    ${option.display_name}
+                    ${isRecommended ? '<span class="model-tag recommended">Recommended</span>' : ''}
+                    ${installed ? '<span class="model-tag installed">Installed</span>' : ''}
+                </div>
+                <div class="model-size">${option.size_gb > 0 ? `~${option.size_gb.toFixed(1)} GB` : 'Installed'}</div>
+                <div class="model-reason">${option.reason}</div>
+            </div>`;
+
+        item.addEventListener('click', () => {
+            document.querySelectorAll('.model-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedModelId = option.model_id;
         });
 
-        const newSelBtn = useSelBtn.cloneNode(true);
-        useSelBtn.parentNode.replaceChild(newSelBtn, useSelBtn);
-        newSelBtn.addEventListener('click', async () => {
-            if (!selectedModelId) return;
+        modelList.appendChild(item);
+    });
+
+    const newRecBtn = useRecBtn.cloneNode(true);
+    useRecBtn.parentNode.replaceChild(newRecBtn, useRecBtn);
+    newRecBtn.addEventListener('click', async () => {
+        if (recommendedInstalled) {
+            await invoke('save_model', { modelName: rec.model_id });
+            await invoke('mark_setup_complete');
+            showScreen('done');
+            return;
+        }
+        await startDownload(rec.model_id, rec.display_name);
+    });
+
+    const newSelBtn = useSelBtn.cloneNode(true);
+    useSelBtn.parentNode.replaceChild(newSelBtn, useSelBtn);
+    newSelBtn.addEventListener('click', async () => {
+        if (!selectedModelId) return;
+        if (installedById.has(selectedModelId)) {
             await invoke('save_model', { modelName: selectedModelId });
             await invoke('mark_setup_complete');
             showScreen('done');
-        });
-    }
+            return;
+        }
+
+        const selected = options.find(option => option.model_id === selectedModelId);
+        await startDownload(selectedModelId, selected?.display_name || selectedModelId);
+    });
 }
 
 // ── Download screen ───────────────────────────────────────────────

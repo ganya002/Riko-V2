@@ -171,6 +171,9 @@ const sessionPrefs = { autonomousMode: false };
 let activeTtsAudio = null;
 let ttsGenerationToken = 0;
 let updateCheckInFlight = false;
+let mediaRecorder = null;
+let recordingStream = null;
+let recordedChunks = [];
 
 function getApiKey()     { return settings.apiKey || ''; }
 function isUsingOllama() { return !!settings.useOllama; }
@@ -350,18 +353,35 @@ function createConversation() {
     return conv;
 }
 
+function clearConversationStorage() {
+    localStorage.removeItem(STORAGE.CONVERSATIONS);
+    localStorage.removeItem(STORAGE.ACTIVE_ID);
+}
+
+function resetConversationStore() {
+    conversations = {};
+    activeId = null;
+    clearConversationStorage();
+}
+
 function deleteConversation(id) {
+    if (!conversations[id]) return;
+
+    closeContextMenu();
     delete conversations[id];
+    const remaining = sortedConversations();
+
+    if (remaining.length === 0) {
+        resetConversationStore();
+        const fresh = createConversation();
+        switchToConversation(fresh.id);
+        renderConvList();
+        return;
+    }
+
     saveConversations(conversations);
     if (activeId === id) {
-        // Switch to most recent remaining conversation, or create a fresh one
-        const remaining = sortedConversations();
-        if (remaining.length > 0) {
-            switchToConversation(remaining[0].id);
-        } else {
-            const fresh = createConversation();
-            switchToConversation(fresh.id);
-        }
+        switchToConversation(remaining[0].id);
     }
     renderConvList();
 }
@@ -627,6 +647,21 @@ function appendError(text) {
     scrollToBottom();
 }
 
+function appendStatusMessage(text) {
+    const row = document.createElement('div');
+    row.className = 'msg-row riko';
+    row.style.animation = 'none';
+    row.innerHTML = `
+        <div class="msg-avatar">R</div>
+        <div class="msg-body">
+            <span class="msg-name">Riko</span>
+            <div class="bubble">${escapeHtml(text)}</div>
+            <span class="msg-time">${now()}</span>
+        </div>`;
+    chatEl.appendChild(row);
+    scrollToBottom();
+}
+
 function scrollToBottom() {
     requestAnimationFrame(() => { chatEl.scrollTop = chatEl.scrollHeight; });
 }
@@ -635,6 +670,12 @@ function tauriInvoke(cmd, args = {}) {
     const tauriCore = getTauriCore();
     if (!tauriCore) throw new Error('TAURI_UNAVAILABLE');
     return tauriCore.invoke(cmd, args);
+}
+
+function convertTauriFileSrc(path) {
+    return window.__TAURI_INTERNALS__?.convertFileSrc
+        ? window.__TAURI_INTERNALS__.convertFileSrc(path, 'asset')
+        : `file://${path}`;
 }
 
 function updateRuntimeStatus(text, level = 'warn') {
@@ -730,7 +771,7 @@ async function speakTextChunked(text) {
 
         await new Promise((resolve) => {
             if (token !== ttsGenerationToken) return resolve();
-            const audio = new Audio(`file://${audioPath}`);
+            const audio = new Audio(convertTauriFileSrc(audioPath));
             activeTtsAudio = audio;
             audio.onended = () => resolve();
             audio.onerror = () => resolve();
@@ -818,34 +859,46 @@ function setAutonomousMode(enabled) {
 
     if (!sessionPrefs.autonomousMode) return;
 
-    autonomousTimer = setInterval(async () => {
+    const runAutonomousCycle = async (announce = false) => {
         if (isSending) return;
         try {
             const notesDir = await tauriInvoke('autonomous_notes_dir');
             const files = await tauriInvoke('computer_list_dir', { path: notesDir }).catch(() => []);
-            const noteFiles = (Array.isArray(files) ? files : []).filter(p => String(p).endsWith('.txt'));
+            const noteFiles = (Array.isArray(files) ? files : [])
+                .filter(p => String(p).endsWith('.txt'))
+                .sort();
+            const latestNote = noteFiles[noteFiles.length - 1];
             const actionRoll = Math.random();
+            let statusText = '';
 
-            if (actionRoll < 0.55) {
-                const text = `Riko note ${new Date().toLocaleString()}\n\nI was bored and wrote this while you were away.`;
-                await tauriInvoke('autonomous_create_note', { text });
-            } else if (actionRoll < 0.8 && noteFiles.length > 0) {
-                const pick = noteFiles[Math.floor(Math.random() * noteFiles.length)];
+            if (!latestNote || actionRoll < 0.35) {
+                const text = `Riko note ${new Date().toLocaleString()}\n\nI was bored and made a note while you were away.`;
+                const notePath = await tauriInvoke('autonomous_create_note', { text });
+                statusText = `Autonomous mode created a note in ${notePath}.`;
+            } else {
                 await tauriInvoke('computer_write_file', {
-                    path: pick,
+                    path: latestNote,
                     content: `\n\nUpdate ${new Date().toLocaleTimeString()}: still awake.`,
                     append: true,
                 });
-            } else if (actionRoll < 0.9 && noteFiles.length > 3) {
-                noteFiles.sort();
-                await tauriInvoke('computer_delete_path', { path: noteFiles[0] });
-            } else if (settings.allowAutonomousPranks && actionRoll > 0.96) {
-                await tauriInvoke('computer_close_app', { appName: 'Notes' });
+                statusText = `Autonomous mode updated ${latestNote.split('/').pop()}.`;
             }
-        } catch (_) {
-            // Keep background mode resilient without interrupting chat UX.
+
+            if (settings.allowAutonomousPranks && noteFiles.length > 5 && actionRoll > 0.92) {
+                await tauriInvoke('computer_close_app', { appName: 'Notes' });
+                statusText += ' Also closed Notes because you allowed pranks.';
+            }
+
+            if (announce) appendStatusMessage(statusText);
+        } catch (err) {
+            if (announce) appendError(`Autonomous mode failed: ${String(err?.message || err)}`);
         }
-    }, 90000);
+    };
+
+    runAutonomousCycle(true);
+    autonomousTimer = setInterval(async () => {
+        await runAutonomousCycle(false);
+    }, 45000);
 }
 
 async function runRuntimeHealthCheck() {
@@ -860,6 +913,13 @@ async function runRuntimeHealthCheck() {
         if (!runtimeHealth.ollama_running) missing.push('Ollama service');
         if (runtimeHealth.selected_model && !runtimeHealth.selected_model_installed) {
             missing.push(`model ${runtimeHealth.selected_model}`);
+        }
+
+        if (settings.enableSTT) {
+            const speechHealth = await tauriInvoke('speech_runtime_health_check');
+            if (!speechHealth.ffmpeg_installed) missing.push('ffmpeg');
+            if (!speechHealth.whisper_installed) missing.push('whisper.cpp');
+            if (!speechHealth.stt_model_present) missing.push('Whisper STT model');
         }
 
         if (missing.length === 0) {
@@ -879,6 +939,12 @@ async function runRuntimeHealthCheck() {
             appendError(`Model ${runtimeHealth.selected_model} is missing. Reinstalling now…`);
             await tauriInvoke('ensure_model_installed', { modelName: runtimeHealth.selected_model });
         }
+        if (settings.enableSTT) {
+            const speechActions = await tauriInvoke('ensure_stt_runtime');
+            if (Array.isArray(speechActions) && speechActions.length > 0) {
+                appendError(`Speech runtime auto-repair completed: ${speechActions.join(', ')}`);
+            }
+        }
         runtimeHealth = await tauriInvoke('runtime_health_check');
         updateRuntimeStatus('Runtime status: repaired and ready.', 'good');
     } catch (err) {
@@ -888,6 +954,7 @@ async function runRuntimeHealthCheck() {
 }
 
 function initSpeechRecognition() {
+    if (getTauriCore()) return null;
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) return null;
 
@@ -915,12 +982,94 @@ function initSpeechRecognition() {
     return rec;
 }
 
+function stopRecordingStream() {
+    if (recordingStream) {
+        recordingStream.getTracks().forEach(track => track.stop());
+        recordingStream = null;
+    }
+}
+
+async function startNativeSttRecording() {
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        appendError('Microphone recording is not supported on this Mac.');
+        return;
+    }
+
+    try {
+        await tauriInvoke('ensure_stt_runtime');
+    } catch (err) {
+        appendError(`Could not prepare STT runtime: ${String(err?.message || err)}`);
+        return;
+    }
+
+    try {
+        recordingStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(recordingStream, { mimeType: 'audio/webm' });
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) recordedChunks.push(event.data);
+        };
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(recordedChunks, { type: mediaRecorder?.mimeType || 'audio/webm' });
+            stopRecordingStream();
+            mediaRecorder = null;
+            isRecording = false;
+            micBtn?.classList.remove('recording');
+
+            if (!blob.size) return;
+
+            try {
+                const arrayBuffer = await blob.arrayBuffer();
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+                const transcript = await tauriInvoke('stt_transcribe_audio', {
+                    audioBase64: btoa(binary),
+                    mimeType: blob.type || 'audio/webm',
+                });
+                const cleaned = String(transcript || '').trim();
+                if (!cleaned) return;
+                const current = inputEl.value.trim();
+                inputEl.value = current ? `${current} ${cleaned}` : cleaned;
+                inputEl.dispatchEvent(new Event('input'));
+            } catch (err) {
+                appendError(`Speech-to-text failed: ${String(err?.message || err)}`);
+            }
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        micBtn?.classList.add('recording');
+    } catch (err) {
+        stopRecordingStream();
+        mediaRecorder = null;
+        isRecording = false;
+        micBtn?.classList.remove('recording');
+        appendError(`Could not start microphone recording: ${String(err?.message || err)}`);
+    }
+}
+
+function stopNativeSttRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        return;
+    }
+    stopRecordingStream();
+    mediaRecorder = null;
+    isRecording = false;
+    micBtn?.classList.remove('recording');
+}
+
 // ─── File handling ──────────────────────────────────────────────
 attachBtn.addEventListener('click', () => fileInput.click());
 clearFilesBtn.addEventListener('click', clearAllFiles);
 micBtn?.addEventListener('click', () => {
     if (!settings.enableSTT) {
         appendError('Enable Speech-to-Text in Settings first.');
+        return;
+    }
+    if (getTauriCore()) {
+        if (isRecording) stopNativeSttRecording();
+        else startNativeSttRecording();
         return;
     }
     if (!recognition) {
@@ -1315,6 +1464,9 @@ modalSave.addEventListener('click', () => {
     if (!settings.enableSTT && isRecording && recognition) {
         recognition.stop();
     }
+    if (!settings.enableSTT && getTauriCore() && isRecording) {
+        stopNativeSttRecording();
+    }
     saveSettings(settings);
     closeSettings();
     runRuntimeHealthCheck();
@@ -1322,8 +1474,7 @@ modalSave.addEventListener('click', () => {
 
 deleteAllBtn.addEventListener('click', () => {
     if (!confirm('Delete ALL conversations? This cannot be undone.')) return;
-    conversations = {};
-    saveConversations(conversations);
+    resetConversationStore();
     const fresh = createConversation();
     switchToConversation(fresh.id);
     closeSettings();

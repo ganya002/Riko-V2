@@ -112,6 +112,68 @@ pub async fn install_ollama(app: AppHandle) -> Result<()> {
     }
 }
 
+pub fn is_ffmpeg_installed() -> bool {
+    ensure_common_bin_paths();
+    which("ffmpeg").is_ok() || std::path::Path::new("/opt/homebrew/bin/ffmpeg").exists()
+}
+
+pub fn is_whisper_installed() -> bool {
+    ensure_common_bin_paths();
+    which("whisper-cli").is_ok() || std::path::Path::new("/opt/homebrew/bin/whisper-cli").exists()
+}
+
+pub async fn install_ffmpeg(app: AppHandle) -> Result<()> {
+    emit(&app, "ffmpeg_install", "running", "Installing ffmpeg via Homebrew…");
+
+    let brew_bin = resolve_brew_binary().ok_or_else(|| anyhow::anyhow!("Homebrew not found"))?;
+    let output = tokio::process::Command::new(brew_bin)
+        .args(["install", "ffmpeg"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await?;
+
+    if output.status.success() {
+        emit(&app, "ffmpeg_install", "done", "ffmpeg installed successfully!");
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let msg = format!(
+            "ffmpeg installation failed: {}\nPlease run: brew install ffmpeg",
+            err.lines().last().unwrap_or("unknown error")
+        );
+        emit(&app, "ffmpeg_install", "error", &msg);
+        anyhow::bail!("ffmpeg install failed")
+    }
+}
+
+pub async fn install_whisper_cpp(app: AppHandle) -> Result<()> {
+    emit(&app, "whisper_install", "running", "Installing whisper.cpp via Homebrew…");
+
+    let brew_bin = resolve_brew_binary().ok_or_else(|| anyhow::anyhow!("Homebrew not found"))?;
+    let output = tokio::process::Command::new(brew_bin)
+        .args(["install", "whisper-cpp"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .await?;
+
+    if output.status.success() {
+        emit(&app, "whisper_install", "done", "whisper.cpp installed successfully!");
+        Ok(())
+    } else {
+        let err = String::from_utf8_lossy(&output.stderr);
+        let msg = format!(
+            "whisper.cpp installation failed: {}\nPlease run: brew install whisper-cpp",
+            err.lines().last().unwrap_or("unknown error")
+        );
+        emit(&app, "whisper_install", "error", &msg);
+        anyhow::bail!("whisper install failed")
+    }
+}
+
 pub async fn run_setup_pipeline(app: AppHandle) -> Result<()> {
     ensure_common_bin_paths();
 

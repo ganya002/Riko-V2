@@ -30,6 +30,12 @@ fn get_model_recommendation() -> hardware::ModelRecommendation {
 }
 
 #[tauri::command]
+fn get_model_catalog() -> hardware::ModelCatalog {
+    let hw = hardware::get_hardware_info();
+    hardware::model_catalog(&hw)
+}
+
+#[tauri::command]
 fn list_models() -> Vec<ollama::OllamaModel> {
     ollama::list_dolphin_models()
 }
@@ -126,6 +132,13 @@ struct UpdateDownloadEvent {
     content_length: Option<u64>,
 }
 
+#[derive(Debug, Serialize)]
+struct SpeechRuntimeHealth {
+    ffmpeg_installed: bool,
+    whisper_installed: bool,
+    stt_model_present: bool,
+}
+
 fn expand_path(input: &str) -> Result<PathBuf, String> {
     if input.trim().is_empty() {
         return Err("path cannot be empty".to_string());
@@ -201,6 +214,159 @@ async fn ensure_model_installed(app: AppHandle, model_name: String) -> Result<()
     ollama::pull_model_with_progress(app, model_name)
         .await
         .map_err(|e| e.to_string())
+}
+
+fn stt_model_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())
+        .map(|dir| dir.join("stt"))
+}
+
+fn stt_model_path(app: &AppHandle) -> Result<PathBuf, String> {
+    stt_model_dir(app).map(|dir| dir.join("ggml-base.en.bin"))
+}
+
+#[tauri::command]
+fn speech_runtime_health_check(app: AppHandle) -> Result<SpeechRuntimeHealth, String> {
+    setup::ensure_common_bin_paths();
+    let model_present = stt_model_path(&app)?.exists();
+    Ok(SpeechRuntimeHealth {
+        ffmpeg_installed: setup::is_ffmpeg_installed(),
+        whisper_installed: setup::is_whisper_installed(),
+        stt_model_present: model_present,
+    })
+}
+
+#[tauri::command]
+async fn ensure_stt_runtime(app: AppHandle) -> Result<Vec<String>, String> {
+    setup::ensure_common_bin_paths();
+    let mut actions = Vec::new();
+
+    if !setup::is_ffmpeg_installed() {
+        setup::install_ffmpeg(app.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        actions.push("Installed ffmpeg".to_string());
+    }
+
+    if !setup::is_whisper_installed() {
+        setup::install_whisper_cpp(app.clone())
+            .await
+            .map_err(|e| e.to_string())?;
+        actions.push("Installed whisper.cpp".to_string());
+    }
+
+    let model_path = stt_model_path(&app)?;
+    if !model_path.exists() {
+        let parent = model_path
+            .parent()
+            .ok_or_else(|| "Invalid STT model path".to_string())?;
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+
+        let response = reqwest::get("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin")
+            .await
+            .map_err(|e| e.to_string())?;
+        if !response.status().is_success() {
+            return Err(format!("Failed to download Whisper model: HTTP {}", response.status()));
+        }
+        let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+        tokio::fs::write(&model_path, bytes)
+            .await
+            .map_err(|e| e.to_string())?;
+        actions.push("Downloaded Whisper STT model".to_string());
+    }
+
+    Ok(actions)
+}
+
+#[tauri::command]
+async fn stt_transcribe_audio(
+    app: AppHandle,
+    audio_base64: String,
+    mime_type: Option<String>,
+) -> Result<String, String> {
+    use base64::Engine;
+
+    ensure_stt_runtime(app.clone()).await?;
+
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(audio_base64)
+        .map_err(|e| e.to_string())?;
+
+    let cache_dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("stt");
+    std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+
+    let extension = match mime_type.as_deref().unwrap_or_default() {
+        "audio/webm" => "webm",
+        "audio/mp4" | "audio/x-m4a" | "audio/m4a" => "m4a",
+        "audio/ogg" => "ogg",
+        "audio/wav" | "audio/wave" => "wav",
+        _ => "webm",
+    };
+
+    let stamp = chrono_like_timestamp();
+    let input_path = cache_dir.join(format!("input-{}.{}", stamp, extension));
+    let wav_path = cache_dir.join(format!("input-{}.wav", stamp));
+    let out_base = cache_dir.join(format!("transcript-{}", stamp));
+    let out_txt = cache_dir.join(format!("transcript-{}.txt", stamp));
+    let model_path = stt_model_path(&app)?;
+
+    tokio::fs::write(&input_path, decoded)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let ffmpeg = which::which("ffmpeg")
+        .map_err(|e| e.to_string())?;
+    let ffmpeg_output = tokio::process::Command::new(ffmpeg)
+        .args([
+            "-y",
+            "-i",
+            &input_path.to_string_lossy(),
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            &wav_path.to_string_lossy(),
+        ])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !ffmpeg_output.status.success() {
+        return Err(String::from_utf8_lossy(&ffmpeg_output.stderr).to_string());
+    }
+
+    let whisper = which::which("whisper-cli")
+        .map_err(|e| e.to_string())?;
+    let whisper_output = tokio::process::Command::new(whisper)
+        .args([
+            "-m",
+            &model_path.to_string_lossy(),
+            "-f",
+            &wav_path.to_string_lossy(),
+            "-l",
+            "en",
+            "-otxt",
+            "-of",
+            &out_base.to_string_lossy(),
+            "-np",
+            "-nt",
+        ])
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !whisper_output.status.success() {
+        return Err(String::from_utf8_lossy(&whisper_output.stderr).to_string());
+    }
+
+    let text = tokio::fs::read_to_string(&out_txt)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(text.trim().to_string())
 }
 
 fn update_endpoint() -> Option<String> {
@@ -481,6 +647,7 @@ pub fn run() {
             run_setup,
             get_hardware,
             get_model_recommendation,
+            get_model_catalog,
             list_models,
             check_ollama_running,
             start_ollama,
@@ -493,6 +660,9 @@ pub fn run() {
             runtime_health_check,
             repair_runtime,
             ensure_model_installed,
+            speech_runtime_health_check,
+            ensure_stt_runtime,
+            stt_transcribe_audio,
             get_update_endpoint,
             check_for_app_update,
             install_app_update,
