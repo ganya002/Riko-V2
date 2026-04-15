@@ -58,7 +58,7 @@ SHARE_ZIP="src-tauri/target/release/bundle/share/RikoRoast-Share.zip"
 LATEST_JSON="src-tauri/target/release/bundle/macos/latest.json"
 
 for path in "$APP_BUNDLE" "$APP_TAR" "$APP_SIG"; do
-  if [[ ! -f "$path" ]]; then
+  if [[ ! -e "$path" ]]; then
     echo "Missing expected build artifact: $path" >&2
     exit 1
   fi
