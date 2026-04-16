@@ -1597,3 +1597,4 @@ document.addEventListener('keydown', e => {
 })();
 // DevRikko: TODO - TTS speech synthesis may need error handling
 // DevRikko: TODO - STT recording may have edge cases
+// DevRikko: TODO - Delete conversation button edge cases
