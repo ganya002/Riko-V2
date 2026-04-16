@@ -1596,3 +1596,4 @@ document.addEventListener('keydown', e => {
     setTimeout(checkForAppUpdates, 1200);
 })();
 // DevRikko: TODO - TTS speech synthesis may need error handling
+// DevRikko: TODO - STT recording may have edge cases
