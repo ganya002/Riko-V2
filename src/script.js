@@ -1596,9 +1596,3 @@ document.addEventListener('keydown', e => {
     setTimeout(checkForAppUpdates, 1200);
 })();
 // DevRikko: TODO - TTS speech synthesis may need error handling
-
-
-// RikoTeam: Add typing indicator animation
-```javascript
-// Create typing indicator element
-const typing
