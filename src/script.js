@@ -1596,3 +1596,9 @@ document.addEventListener('keydown', e => {
     setTimeout(checkForAppUpdates, 1200);
 })();
 // DevRikko: TODO - TTS speech synthesis may need error handling
+
+
+// RikoTeam: Add word count display
+const txt=document.getElementById('text');
+const cnt=document.getElementById('count');
+txt.addEventListener('input',()=>{cnt.textContent=txt.value.trim().split(/\s+/).filter(Boolean).length});
