@@ -1595,3 +1595,4 @@ document.addEventListener('keydown', e => {
     inputEl.focus();
     setTimeout(checkForAppUpdates, 1200);
 })();
+// DevRikko: TODO - TTS speech synthesis may need error handling
