@@ -1595,3 +1595,5 @@ document.addEventListener('keydown', e => {
     inputEl.focus();
     setTimeout(checkForAppUpdates, 1200);
 })();
+
+// DevRikko: const MAX_FILE_SIZE_BYTES = 512 * 1024 * 1; // 512 KB per file, consider using a named constant for clarity
